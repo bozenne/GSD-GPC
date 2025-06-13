@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:35) 
 ## Version: 
-## Last-Updated: jun 13 2025 (12:00) 
+## Last-Updated: jun 13 2025 (15:15) 
 ##           By: Brice Ozenne
-##     Update #: 22
+##     Update #: 25
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -24,13 +24,18 @@ subset.simTrial <- function(object, interim){
     admin.censoring <- attr(object, "admin.censoring")
 
     if(is.null(interim)){
-        interim <- Inf
+        if(!is.null(attr(object,"interim"))){
+            interim <- attr(object,"interim")
+        }else{
+            interim <- Inf
+        }
     }else if(length(interim)!=1){
         stop("Argument \'interim\' should have length 1. \n")
     }
     if(!is.numeric(interim) || interim <= 0){
         stop("Argument \'interim\' should be a strictly positive numeric value. \n")
     }
+
     if(!is.null(attr(object,"interim"))){
         if(attr(object,"interim")<interim){
             stop("Cannot apply the subset function when the data has already been subset at an earlier interim. \n")

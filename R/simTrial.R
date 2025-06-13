@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun  3 2025 (09:38) 
 ## Version: 
-## Last-Updated: jun 13 2025 (14:25) 
+## Last-Updated: jun 13 2025 (17:12) 
 ##           By: Brice Ozenne
-##     Update #: 321
+##     Update #: 347
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -39,7 +39,7 @@
 
 ## * simTrial (example)
 ##' @examples
-##'
+##' 
 ##' ## simulate data
 ##' df.sim <- simTrial(n.E = 100, n.C = 200, seed = 1, latent = TRUE)
 ##'
@@ -47,9 +47,9 @@
 ##' df.sim
 ##' summary(df.sim)
 ##' plot(df.sim, type = "lexis")
-##' plot(df.sim, facet = ~group, labeller = label_both)
-##' plot(df.sim, facet = ~state, labeller = label_both)
-##' plot(df.sim, facet = group~state, labeller = label_both)
+##' plot(df.sim, facet = ~group, labeller = "label_both")
+##' plot(df.sim, facet = ~state, labeller = "label_both")
+##' plot(df.sim, facet = group~sntate, labeller = "label_both")
 ##' 
 ##' plot(df.sim, type = "recruitment")
 ##' plot(df.sim, type = "survival")
@@ -80,12 +80,12 @@
 
 ## * simTrial (code)
 simTrial <- function(n.C, shape.recruitment.C = c(NA,NA),
-                     scale.C = c(0.5,0.75), shape.C = c(2,0.75), dist.C = c("weibull", "weibull"), rho.C = 0,
+                     scale.C = c(0.75,0.5), shape.C = c(3,0.75), dist.C = c("weibull", "weibull"), rho.C = 0,
                      scale.censoring.C = 1, shape.censoring.C = 1, dist.censoring.C = "weibull",
                      n.E = NULL, shape.recruitment.E = NULL,
                      scale.E = NULL, shape.E = NULL, dist.E = NULL, rho.E = 0,
                      scale.censoring.E = NULL, shape.censoring.E = NULL, dist.censoring.E = NULL,
-                     admin.censoring = 0.5, seed = NULL, latent = FALSE){
+                     admin.censoring = 0.75, seed = NULL, latent = FALSE){
 
     tol <- 1e-12
 
@@ -149,16 +149,24 @@ simTrial <- function(n.C, shape.recruitment.C = c(NA,NA),
     }else{
         data.E[[name.inclusion]] <- sort(rbeta(n.E, shape1 = shape.recruitment.E[1], shape2 = shape.recruitment.E[2]))
     }
-    
+
     ## censoring distribution
-    data.C[[name.censtime]] <- switch(dist.censoring.C,
-                                      "uniform" = runif(n.C, min = scale.censoring.C, max = shape.censoring.C),
-                                      "weibull" = rweibull(n.C, scale = scale.censoring.C, shape = shape.censoring.C),
-                                      "piecewiseExp" = rexppiecewise(n.C, rate = 1/scale.censoring.C, breaks = shape.censoring.C))
-    data.E[[name.censtime]] <- switch(dist.censoring.E,
-                                      "uniform" = runif(n.E, min = scale.censoring.E, max = shape.censoring.E),
-                                      "weibull" = rweibull(n.E, scale = scale.censoring.E, shape = shape.censoring.E),
-                                      "piecewiseExp" = rexppiecewise(n.E, rate = 1/scale.censoring.E, breaks = shape.censoring.E))
+    if(all(is.infinite(scale.censoring.C))){
+        data.C[[name.censtime]] <- Inf
+    }else{
+        data.C[[name.censtime]] <- switch(dist.censoring.C,
+                                          "uniform" = runif(n.C, min = scale.censoring.C, max = shape.censoring.C),
+                                          "weibull" = rweibull(n.C, scale = scale.censoring.C, shape = shape.censoring.C),
+                                          "piecewiseExp" = rexppiecewise(n.C, rate = 1/scale.censoring.C, breaks = shape.censoring.C))
+    }
+    if(all(is.infinite(scale.censoring.E))){
+        data.E[[name.censtime]] <- Inf
+    }else{
+        data.E[[name.censtime]] <- switch(dist.censoring.E,
+                                          "uniform" = runif(n.E, min = scale.censoring.E, max = shape.censoring.E),
+                                          "weibull" = rweibull(n.E, scale = scale.censoring.E, shape = shape.censoring.E),
+                                          "piecewiseExp" = rexppiecewise(n.E, rate = 1/scale.censoring.E, breaks = shape.censoring.E))
+    }
 
     ## outcome distribution
     if(abs(rho.C)<0){
@@ -397,9 +405,74 @@ rexppiecewise <- function(n, rate, breaks, method = "single"){
 }
 
 ## ** pexppiecewise
-pexppiecewise <- function(q, rate, breaks, method = "single"){
+##' @examples
+##' ## EXAMPLE 1
+##' rate1 <- c(0.1,0.2)
+##' q1 <- seq(0,15,by=0.1)
+##' 
+##' res1 <- pexppiecewise(q1, rate = rate1, breaks = 10)
+##' res1
+##' all(diff(res1)>0)
+##' res1 - (pexp(q1, rate = rate1[1])*(q1<=10) + (1 - pexp(10, rate = rate1[1], lower.tail = FALSE)*pexp(q1 - 10, rate = rate1[2], lower.tail = FALSE))*(q1>10))
+##' 
+##' ## EXAMPLE 3
+##' rate3 <- c(0.1,0.1,0.1)
+##' q3 <- c(0,0.1,1.1,10.1)
+##' 
+##' res3 <- pexppiecewise(q = q3, rate = rate3, breaks = c(1,10))
+##' res3
+##' res3 - pexp(q = q3, rate = unique(rate3))
+##' 
+pexppiecewise <- function(q, rate, breaks){
 
-    browser()
+    tol <- 1e-12    
+    n.rate <- length(rate)
+    diff.breaks <- diff(c(0,breaks,Inf))
+
+    ## evaluate the cumulative hazard at the end of each interval (except the last interval, Inf)
+    A.min <- cumsum(c(0,rate*diff.breaks)[1:n.rate])
+    ## find the interval corresponding to the timepoint
+    index.A <- cut(q, breaks = c(-tol,breaks,Inf))
+    indexNum.A <- as.numeric(index.A)
+    ## evaluate the cumulative hazard for each timepoint
+    A.q <- A.min[indexNum.A] + rate[indexNum.A] * (q - c(0,breaks)[indexNum.A])
+    out <- 1 - exp(-A.q)
+    return(out)
 }
+
+## ** qexppiecewise
+##' @examples
+##' ## EXAMPLE 1
+##' rate1 <- c(0.1,0.2)
+##' p1 <- seq(0,1,by=0.1)
+##' 
+##' res1 <- qexppiecewise(p1, rate = rate1, breaks = 10)
+##' res1
+##' pexppiecewise(res1, rate = rate1, breaks = 10) - p1
+##' 
+##' ## EXAMPLE 3
+##' rate3 <- c(0.1,0.1,0.1)
+##' p3 <- seq(0,1,0.1)
+##' 
+##' res3 <- qexppiecewise(p = p3, rate = rate3, breaks = c(1,10))
+##' res3
+##' pexppiecewise(res3, rate = rate3, breaks = c(1,10)) - p3
+qexppiecewise <- function(p, rate, breaks){
+
+    tol <- 1e-12    
+    n.rate <- length(rate)
+    diff.breaks <- diff(c(0,breaks,Inf))
+
+    ## evaluate the cumulative hazard at the end of each interval (except the last interval, Inf)
+    A.min <- cumsum(c(0,rate*diff.breaks)[1:n.rate])
+    ## find the interval corresponding to the timepoint
+    index.A <- cut(p, breaks = c(-tol,pexppiecewise(breaks, rate = rate, breaks = breaks),1+tol))
+    indexNum.A <- as.numeric(index.A)
+    ## revert the cumulative hazard for each timepoint
+    out <- c(0,breaks)[indexNum.A] + (- log(1 - p) - A.min[indexNum.A])/rate[indexNum.A]
+    return(out)
+}
+
+
 ##----------------------------------------------------------------------
 ### simTrial.R ends here

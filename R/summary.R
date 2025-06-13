@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:34) 
 ## Version: 
-## Last-Updated: jun 12 2025 (11:16) 
+## Last-Updated: jun 13 2025 (12:04) 
 ##           By: Brice Ozenne
-##     Update #: 19
+##     Update #: 20
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -25,7 +25,7 @@ summary.simTrial <- function(object, interim = NULL){
     interim.state <- table(data.interim$group, data.interim$state)
 
     ## ** count final state
-    M.event <- cbind(Alive = interim.state[,"alive"],
+    M.event <- cbind(Alive = rowSums(interim.state[,c("alive","alive & tox")]),
                      Dead = rowSums(interim.state[,c("dead","dead & tox")]),
                      Tox = rowSums(interim.state[,c("alive & tox","dead & tox","tox & dropout")]),
                      Dropout = rowSums(interim.state[,c("dropout","tox & dropout")])

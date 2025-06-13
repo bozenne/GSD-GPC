@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:35) 
 ## Version: 
-## Last-Updated: jun 12 2025 (11:06) 
+## Last-Updated: jun 13 2025 (12:00) 
 ##           By: Brice Ozenne
-##     Update #: 18
+##     Update #: 22
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -42,10 +42,10 @@ subset.simTrial <- function(object, interim){
     out$pipeline <- ((out$timeInclusion + out$timeSurv) > interim)
     out$statusSurv <- out$statusSurv * ((out$timeInclusion + out$timeSurv) <= interim)
     out$timeSurv <- pmin(out$timeInclusion + out$timeSurv, interim) - out$timeInclusion
-    out$statusTox <- out$statusTox * ((out$timeInclusion + out$timeTox) <= interim)
+    out$statusTox <- (out$statusTox==1) * ((out$timeInclusion + out$timeTox) <= interim)
     out$timeTox <- pmin(out$timeInclusion + out$timeTox, interim) - out$timeInclusion
     attr(out,"interim") <- interim
-    
+
     ## ** add type
     out$state <- factor("alive", levels = c("alive","alive & tox","dead","dead & tox","tox & dropout","dropout"))
     out$state[out$statusSurv==1 & out$statusTox==1] <- "dead & tox"

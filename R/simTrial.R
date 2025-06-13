@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun  3 2025 (09:38) 
 ## Version: 
-## Last-Updated: jun 12 2025 (12:11) 
+## Last-Updated: jun 13 2025 (14:25) 
 ##           By: Brice Ozenne
-##     Update #: 171
+##     Update #: 321
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -18,14 +18,30 @@
 ## * simTrial (documentation)
 ##' @param n.E [integer] sample size in the experimental group
 ##' @param n.C [integer] sample size in the control group
-##' @param dist.recruitment [character] distribution used to model the inclusion of the patients.
-##' Can be \code{"uniform"} for deterministic equally spread inclusion between 0 and 1
-##' or \code{"runif"} for stochastic inclusion based on a uniform distribution.
-##' 
+##' @param shape.recruitment.C,shape.recruitment.E [numeric vector of length 2] shape of the distribution used to model the inclusion of the patients in the control/experimental group.
+##' When \code{NA},  deterministic and equally spread recruitment time between 0 and 1.
+##' Otherwise beta distributed recruitment time - \code{c(1,1)} corresponds to stochastic inclusion based on a uniform distribution.
+##' @param scale.C,scale.E [numeric vector/list of length 2] first parameter of the survival and toxicity distribution in the control/experimental group.
+##' @param shape.C,shape.E [numeric vector/list of length 2] second parameter of the survival and toxicity distribution in the control/experimental group.
+##' @param dist.C,dist.E [character] distribution used to generate the survival and toxicity time to events in the control/experimental group.
+##' Can be a Weibull distribution (\code{"weibull"}), a uniform distribution (\code{"uniform"}), or based on piecewise constant hazards (\code{"piecewiseExp"}).
+##' @param rho.C,rho.E [numeric] correlation coefficient used to parametrize the Gaussian copula inducing correlation between the survival and toxicity time to events in the control/experimental group.
+##' @param scale.censoring.E,scale.censoring.E [numeric] first parameter of the censoring distribution in the control/experimental group
+##' @param shape.censoring.C,shape.censoring.E [numeric] second parameter of the censoring distribution in the control/experimental group
+##' @param dist.censoring.C,dist.censoring.E [character] distribution used to generate the censoring time in the control/experimental group.
+##' @param  [character] distribution used to generate the censoring time in the experimental group.
+##' Can be a Weibull distribution (\code{"weibull"}), a uniform distribution (\code{"uniform"}), or based on piecewise constant hazards (\code{"piecewiseExp"}).
+##' @param admin.censoring [numeric, >0] maximum possible follow-up time for each participant.
+##' @param seed [integer, >0] set the initial state of the random number generator (for reproducibility).
+##' @param latent [logical] should the censoring times and uncensored event time be output?
+##'
+##' @details Time to event can either be Weibull distributed (scale,shape), uniform distributed (min,max), or with piecewise constant hazard (hazard, cutpoints).
+
+## * simTrial (example)
 ##' @examples
 ##'
 ##' ## simulate data
-##' df.sim <- simTrial(n.E = 50, n.C = 100, seed = 1, latent = TRUE)
+##' df.sim <- simTrial(n.E = 100, n.C = 200, seed = 1, latent = TRUE)
 ##'
 ##' ## display data
 ##' df.sim
@@ -51,157 +67,167 @@
 ##' 
 ##' plot(dfObs.sim, type = "survival")
 ##' plot(dfObs.sim, type = "toxicity")
+##'
+##'
+##' ## add correlation between endpoints
+##' dfCor.sim <- simTrial(n.E = 100, n.C = 200, seed = 1, latent = TRUE, rho.C = -0.5, rho.E = 0.5)
+##'
+##' ggCor <- ggplot(dfCor.sim, aes(x = eta.timeTox, y = eta.timeSurv))
+##' ggCor <- ggCor + geom_point() + facet_wrap(~group)
+##' ggCor
+##' 
+##' plot(dfCor.sim, facet = group~state, labeller = label_both)
 
 ## * simTrial (code)
-simTrial <- function(n.E, n.C = NULL, dist.recruitment = "uniform",
-                     scale.E = c(0.5,0.5), shape.E = c(0.5,2), dist.E = c("weibull", "weibull"),
-                     scale.C = NULL, shape.C = NULL, dist.C = NULL,
-                     scale.censoring.E = 1, shape.censoring.E = 1, dist.censoring.E = "weibull",
-                     scale.censoring.C = NULL, shape.censoring.C = NULL, dist.censoring.C = NULL,
-                     rho = rep(0,2), admin.censoring = 0.5, seed = NULL, latent = FALSE
-                     ){
-    requireNamespace("lava")
+simTrial <- function(n.C, shape.recruitment.C = c(NA,NA),
+                     scale.C = c(0.5,0.75), shape.C = c(2,0.75), dist.C = c("weibull", "weibull"), rho.C = 0,
+                     scale.censoring.C = 1, shape.censoring.C = 1, dist.censoring.C = "weibull",
+                     n.E = NULL, shape.recruitment.E = NULL,
+                     scale.E = NULL, shape.E = NULL, dist.E = NULL, rho.E = 0,
+                     scale.censoring.E = NULL, shape.censoring.E = NULL, dist.censoring.E = NULL,
+                     admin.censoring = 0.5, seed = NULL, latent = FALSE){
+
+    tol <- 1e-12
 
     ## ** normalize user input
+    name.inclusion <- "timeInclusion"
     name.time <- c("timeSurv","timeTox")
     name.etatime <- paste0("eta.",name.time)
-    name.censtime <- paste0("cens.",name.time)
+    name.censtime <- "timeCens"
     name.status <- c("statusSurv","statusTox")
     
-    ## sample size per arm
-    if(is.null(n.C)){
-        n.C <- n.E
-    }
+    ## set experimental arm parameter to control arm parameter when missing
+    if(is.null(n.E)){n.E <- n.C}
+    if(is.null(shape.recruitment.E)){shape.recruitment.E <- shape.recruitment.C}
+    if(is.null(scale.E)){scale.E <- scale.C}
+    if(is.null(shape.E)){shape.E <- shape.C}
+    if(is.null(dist.E)){dist.E <- dist.C}
+    if(is.null(rho.E)){rho.E <- rho.C}
+    if(is.null(scale.censoring.E)){scale.censoring.E <- scale.censoring.C}
+    if(is.null(shape.censoring.E)){shape.censoring.E <- shape.censoring.C}
+    if(is.null(dist.censoring.E)){dist.censoring.E <- dist.censoring.C}
 
     ## distribution of the recruitment times
-    dist.recruitment <- match.arg(dist.recruitment, choices = c("uniform","runif"))
+    shape.recruitment.C <- check_recruitmentDist(value = shape.recruitment.C, name = "shape.recruitment.C")
+    shape.recruitment.E <- check_recruitmentDist(value = shape.recruitment.E, name = "shape.recruitment.E")
 
     ## outcome distribution
-    if(length(scale.E) != 2){
-        stop("Argument \'scale.E\' should have length 2. \n")
-    }
-    if(length(shape.E) != 2){
-        stop("Argument \'scale.E\' should have length 2. \n")
-    }
-    if(length(dist.E) != 2){
-        stop("Argument \'scale.E\' should have length 2. \n")
-    }else{
-        dist.E[1] <- match.arg(dist.E[1], choices = c("weibull", "uniform","piecewiseExp"))
-        dist.E[2] <- match.arg(dist.E[2], choices = c("weibull", "uniform","piecewiseExp"))
-    }
-    if(is.null(scale.C)){
-        scale.C <- scale.E
-    }else if(length(scale.C) != 2){
-        stop("Argument \'scale.C\' should have length 2. \n")
-    }
-    if(is.null(shape.C)){
-        shape.C <- shape.E
-    }else if(length(shape.C) != 2){
-        stop("Argument \'scale.C\' should have length 2. \n")
-    }
-    
-    if(is.null(dist.C)){
-        dist.C <- dist.E
-    }else if(length(dist.C) != 2){
-        stop("Argument \'dist.C\' should have length 2. \n")
-    }else{
-        dist.C[1] <- match.arg(dist.C[1], choices = c("weibull", "uniform","piecewiseExp"))
-        dist.C[2] <- match.arg(dist.C[2], choices = c("weibull", "uniform","piecewiseExp"))
-    }
+    scale.C <- check_outcomeScale(scale.C, name = "scale.C")
+    shape.C <- check_outcomeShape(shape.C, name = "shape.C")
+    dist.C <- check_outcomeDist(dist.C, name = "dist.C")
+    rho.C <- check_outcomeCor(rho.C, name = "rho.C")
 
-    if(length(scale.censoring.E) != 1){
-        stop("Argument \'scale.censoring.E\' should have length 1. \n")
-    }
-    if(length(shape.censoring.E) != 1){
-        stop("Argument \'scale.censoring.E\' should have length 1. \n")
-    }
-    if(length(dist.censoring.E) != 1){
-        stop("Argument \'scale.censoring.E\' should have length 1. \n")
-    }else{
-        dist.censoring.E <- match.arg(dist.censoring.E, choices = c("weibull", "uniform","piecewiseExp"))
-    }
-    if(is.null(scale.censoring.C)){
-        scale.censoring.C <- scale.censoring.E
-    }else if(length(scale.censoring.C) != 1){
-        stop("Argument \'scale.censoring.C\' should have length 1. \n")
-    }
-    if(is.null(shape.censoring.C)){
-        shape.censoring.C <- shape.censoring.E
-    }else if(length(shape.censoring.C) != 1){
-        stop("Argument \'scale.censoring.C\' should have length 1. \n")
-    }
-    
-    if(is.null(dist.censoring.C)){
-        dist.censoring.C <- dist.censoring.E
-    }else if(length(dist.censoring.C) != 1){
-        stop("Argument \'dist.censoring.C\' should have length 1. \n")
-    }else{
-        dist.censoring.C <- match.arg(dist.censoring.C, choices = c("weibull", "uniform","piecewiseExp"))
-    }
+    scale.E <- check_outcomeScale(scale.E, name = "scale.E")
+    shape.E <- check_outcomeShape(shape.E, name = "shape.E")
+    dist.E <- check_outcomeDist(dist.E, name = "dist.E")
+    rho.E <- check_outcomeCor(rho.E, name = "rho.E")
+
+    ## censoring distribution
+    scale.censoring.C <- check_censoringScale(scale.censoring.C, name = "scale.censoring.C")
+    shape.censoring.C <- check_censoringShape(shape.censoring.C, name = "shape.censoring.C")
+    dist.censoring.C <- check_censoringDist(dist.censoring.C, name = "dist.censoring.C")
+
+    scale.censoring.E <- check_censoringScale(scale.censoring.E, name = "scale.censoring.E")
+    shape.censoring.E <- check_censoringShape(shape.censoring.E, name = "shape.censoring.E")
+    dist.censoring.E <- check_censoringDist(dist.censoring.E, name = "dist.censoring.E")
 
     ## ** data generating mechanism
-    model.C <- lava::lvm()
-    ## lava::distribution(model.C,~id) <- lava::Sequence.lvm(1,n.C)
-    lava::categorical(model.C,labels="control") <- "group"
-    model.E <- lava::lvm()
-    ## lava::distribution(model.E,~id) <- lava::Sequence.lvm(n.C+1,n.C+n.E)
-    lava::categorical(model.E,labels="experimental") <- "group"
-    
-    ## inclusion time
-    if(dist.recruitment == "uniform"){
-        lava::distribution(model.C, "timeInclusion") <- lava::Sequence.lvm(0,1)
-        lava::distribution(model.E, "timeInclusion") <- lava::Sequence.lvm(0,1)
-    }else if(dist.recruitment == "runif"){
-        lava::distribution(model.C, "timeInclusion") <- lava::uniform.lvm(0,1)
-        lava::distribution(model.E, "timeInclusion") <- lava::uniform.lvm(0,1)
-    }
-    
-    ## censoring distribution
-    lava::distribution(model.C, "timeCens") <- switch(dist.censoring.C,
-                                                      "uniform" = lava::uniform.lvm(a = scale.censoring.C, b = shape.censoring.C),
-                                                      "weibull" = lava::weibull.lvm(scale = scale.censoring.C, shape = 1/shape.censoring.C),
-                                                      "piecewiseExp" = lava::coxExponential.lvm(scale = scale.censoring.C, timecut = shape.censoring.C))
-    lava::distribution(model.E, "timeCens") <- switch(dist.censoring.E,
-                                                      "uniform" = lava::uniform.lvm(a = scale.censoring.E, b = shape.censoring.E),
-                                                      "weibull" = lava::weibull.lvm(scale = scale.censoring.E, shape = 1/shape.censoring.E),
-                                                      "piecewiseExp" = lava::coxExponential.lvm(scale = scale.censoring.E, timecut = shape.censoring.E))
-
-    ## outcome distribution
-    for(iterO in 1:2){
-        lava::distribution(model.C, name.etatime[iterO]) <- switch(dist.C[iterO],
-                                                                   "uniform" = lava::uniform.lvm(a = scale.C[iterO], b = shape.C[iterO]),
-                                                                   "weibull" = lava::weibull.lvm(scale = scale.C[iterO], shape = 1/shape.C[iterO]),
-                                                                   "piecewiseExp" = lava::coxExponential.lvm(scale = scale.C[iterO], timecut = shape.C[iterO]))
-        lava::distribution(model.E, name.etatime[iterO]) <- switch(dist.E[iterO],
-                                                                   "uniform" = lava::uniform.lvm(a = scale.E[iterO], b = shape.E[iterO]),
-                                                                   "weibull" = lava::weibull.lvm(scale = scale.E[iterO], shape = 1/shape.E[iterO]),
-                                                                   "piecewiseExp" = lava::coxExponential.lvm(scale = scale.E[iterO], timecut = shape.E[iterO]))
-    }
-    model.C <- lava::latent(model.C, reformulate(termlabels = c(name.etatime,"timeCens",name.censtime)))
-    model.E <- lava::latent(model.E, reformulate(termlabels = c(name.etatime,"timeCens",name.censtime)))
-
-    ## observed (right-censored) outcome distribution
-    for(iterO in 1:2){
-        if(iterO==1){
-            iFF <- reformulate("timeCens", name.censtime[iterO])
-        }else{
-            iFF <- reformulate(c("timeCens",name.etatime[1:(iterO-1)]), name.censtime[iterO])
-        }
-        lava::transform(model.C, iFF) <- function(x){apply(cbind(admin.censoring,x),1,min)}
-        lava::transform(model.E, iFF) <- function(x){apply(cbind(admin.censoring,x),1,min)}
-
-        txtSurv <- paste0(name.time[iterO], "~min(",name.etatime[iterO],"=1,",name.censtime[iterO],"=0)")
-        model.C <- lava::eventTime(model.C, stats::as.formula(txtSurv), name.status[iterO])
-        model.E <- lava::eventTime(model.E, stats::as.formula(txtSurv), name.status[iterO])
-    }
-
-    ## ** simulate data
     if(!is.null(seed)){
         set.seed(seed)
     }
-    out <- rbind(lava::sim(model.E, n = n.E, latent = latent),
-                 lava::sim(model.C, n = n.C, latent = latent))
+    data.C <- data.frame(group = rep("control",n.C))
+    data.E <- data.frame(group = rep("experimental",n.E))
+
+    ## inclusion time
+    if(is.null(shape.recruitment.C)){
+        data.C[[name.inclusion]] <- seq(from = 0, to = 1, length.out = n.C)
+    }else{
+        data.C[[name.inclusion]] <- sort(rbeta(n.C, shape1 = shape.recruitment.C[1], shape2 = shape.recruitment.C[2]))
+    }
+    if(is.null(shape.recruitment.E)){
+        data.E[[name.inclusion]] <- seq(from = 0, to = 1, length.out = n.E)
+    }else{
+        data.E[[name.inclusion]] <- sort(rbeta(n.E, shape1 = shape.recruitment.E[1], shape2 = shape.recruitment.E[2]))
+    }
+    
+    ## censoring distribution
+    data.C[[name.censtime]] <- switch(dist.censoring.C,
+                                      "uniform" = runif(n.C, min = scale.censoring.C, max = shape.censoring.C),
+                                      "weibull" = rweibull(n.C, scale = scale.censoring.C, shape = shape.censoring.C),
+                                      "piecewiseExp" = rexppiecewise(n.C, rate = 1/scale.censoring.C, breaks = shape.censoring.C))
+    data.E[[name.censtime]] <- switch(dist.censoring.E,
+                                      "uniform" = runif(n.E, min = scale.censoring.E, max = shape.censoring.E),
+                                      "weibull" = rweibull(n.E, scale = scale.censoring.E, shape = shape.censoring.E),
+                                      "piecewiseExp" = rexppiecewise(n.E, rate = 1/scale.censoring.E, breaks = shape.censoring.E))
+
+    ## outcome distribution
+    if(abs(rho.C)<0){
+        for(iterO in 1:2){
+            data.C[[name.etatime[iterO]]] <- switch(dist.C[iterO],
+                                                    "uniform" = runif(n.C, min = scale.C[[iterO]], max = shape.C[[iterO]]),
+                                                    "weibull" = rweibull(n.C, scale = scale.C[[iterO]], shape = shape.C[[iterO]]),
+                                                    "piecewiseExp" = rexppiecewise(rate = 1/scale.C[[iterO]], breaks = shape.C[[iterO]]))
+        }
+    }else{ ## Gaussian copula
+        requireNamespace("mvtnorm")        
+        Sigma.C <- diag(1-rho.C,2,2) + rho.C
+        Mnorm.C <- mvtnorm::rmvnorm(n.C, mean = rep(0,2), sigma = Sigma.C)
+        Munif.C <- matrix(pnorm(Mnorm.C), nrow = n.C, ncol = 2)
+        ## qnorm(Munif.C[1,]) - Mnorm.C[1,]
+        for(iterO in 1:2){
+            data.C[[name.etatime[iterO]]] <- switch(dist.C[iterO],
+                                                    "uniform" = qunif(Munif.C[,iterO], min = scale.C[[iterO]], max = shape.C[[iterO]]),
+                                                    "weibull" = qweibull(Munif.C[,iterO], scale = scale.C[[iterO]], shape = shape.C[[iterO]]),
+                                                    "piecewiseExp" = qexppiecewise(Munif.C[,iterO], rate = 1/scale.C[[iterO]], breaks = shape.C[[iterO]]))
+        }
+    }
+   
+    if(abs(rho.E)<0){
+        for(iterO in 1:2){
+            data.E[[name.etatime[iterO]]] <- switch(dist.E[iterO],
+                                                    "uniform" = runif(n.E, min = scale.E[[iterO]], max = shape.E[[iterO]]),
+                                                    "weibull" = rweibull(n.E, scale = scale.E[[iterO]], shape = shape.E[[iterO]]),
+                                                    "piecewiseExp" = rexppiecewise(rate = 1/scale.E[[iterO]], breaks = shape.E[[iterO]]))
+        }
+    }else{
+        requireNamespace("mvtnorm")        
+        Sigma.E <- diag(1-rho.E,2,2) + rho.E
+        Mnorm.E <- mvtnorm::rmvnorm(n.E, mean = rep(0,2), sigma = Sigma.E)
+        Munif.E <- matrix(pnorm(Mnorm.E), nrow = n.E, ncol = 2)
+        ## qnorm(Munif.E[1,]) - Mnorm.E[1,]
+        for(iterO in 1:2){
+            data.E[[name.etatime[iterO]]] <- switch(dist.E[iterO],
+                                                    "uniform" = qunif(Munif.E[,iterO], min = scale.E[[iterO]], max = shape.E[[iterO]]),
+                                                    "weibull" = qweibull(Munif.E[,iterO], scale = scale.E[[iterO]], shape = shape.E[[iterO]]),
+                                                    "piecewiseExp" = qexppiecewise(Munif.E[,iterO], rate = 1/scale.E[[iterO]], breaks = shape.E[[iterO]]))
+        }
+    }
+
+    ## observed (right-censored) outcome distribution
+    data.C[[name.time[1]]] <- pmin(data.C[[name.etatime[1]]], data.C[[name.censtime]], admin.censoring)
+    data.C[[name.status[1]]] <- as.numeric((data.C[[name.etatime[1]]] <= data.C[[name.censtime]]) & (data.C[[name.etatime[1]]] <= admin.censoring))
+
+    data.C[[name.time[2]]] <- pmin(data.C[[name.etatime[1]]], data.C[[name.etatime[2]]], data.C[[name.censtime]], admin.censoring)
+    term1 <- (data.C[[name.etatime[2]]] <= data.C[[name.etatime[1]]]) & (data.C[[name.etatime[2]]] <= data.C[[name.censtime]]) & (data.C[[name.etatime[2]]] <= admin.censoring)
+    term2 <- (data.C[[name.etatime[1]]] < data.C[[name.etatime[2]]]) & (data.C[[name.etatime[1]]] <= data.C[[name.censtime]]) & (data.C[[name.etatime[1]]] <= admin.censoring)
+    data.C[[name.status[2]]] <- term1 + 2*term2
+
+    data.E[[name.time[1]]] <- pmin(data.E[[name.etatime[1]]], data.E[[name.censtime]], admin.censoring)
+    data.E[[name.status[1]]] <- as.numeric((data.E[[name.etatime[1]]] <= data.E[[name.censtime]]) & (data.E[[name.etatime[1]]] <= admin.censoring))
+
+    data.E[[name.time[2]]] <- pmin(data.E[[name.etatime[1]]], data.E[[name.etatime[2]]], data.E[[name.censtime]], admin.censoring)
+    term1 <- (data.E[[name.etatime[2]]] <= data.E[[name.etatime[1]]]) & (data.E[[name.etatime[2]]] <= data.E[[name.censtime]]) & (data.E[[name.etatime[2]]] <= admin.censoring)
+    term2 <- (data.E[[name.etatime[1]]] < data.E[[name.etatime[2]]]) & (data.E[[name.etatime[1]]] <= data.E[[name.censtime]]) & (data.E[[name.etatime[1]]] <= admin.censoring)
+    data.E[[name.status[2]]] <- term1 + 2*term2
+
+    ## ** collect data
+    out <- rbind(data.C, data.E)
     out.order <- cbind(id = 1:NROW(out),out[order(out$timeInclusion),])
+    if(latent==FALSE){
+        out.order[name.censtime] <- NULL
+        out.order[name.etatime[1]] <- NULL
+        out.order[name.etatime[2]] <- NULL
+    }
     
     ## ** export
     class(out.order) <- append("simTrial",class(out.order))
@@ -211,7 +237,169 @@ simTrial <- function(n.E, n.C = NULL, dist.recruitment = "uniform",
 }
 
 
+## * helper
+## ** check_recruitment
+check_recruitmentDist <- function(value, name){
 
+    if(length(value)==0 || any(is.na(value))){
+        value <- NULL
+    }else if(length(value)==1){
+        if(is.numeric(value)){
+            value <- rep(value,2)
+        }else{
+            stop("Argument \'",name,"\' should either be a numeric vector of length 2 (beta distributed inclusion time), \n",
+                 "or NULL (deterministic equally spread inclusion times). \n")
+        }
+    }else if(length(value)==2){
+        if(!is.numeric(value)){
+            stop("Argument \'",name,"\' should either be a numeric vector of length 2 (beta distributed inclusion time), \n",
+                 "or NULL (deterministic equally spread inclusion times). \n")
+        }
+    }else if(length(value)>2){
+        stop("Argument \'",name,"\' should have length at most 2. \n")
+    }
 
+    return(value)
+}
+
+## ** check_outcome
+check_outcomeScale <- function(value, name){
+    if(length(value) != 2){
+        stop("Argument \'",name,"\' should have length 2. \n")
+    }
+    return(value)
+}
+check_outcomeShape <- function(value, name){
+    if(length(value) != 2){
+        stop("Argument \'",name,"\' should have length 2. \n")
+    }
+    return(value)
+}
+check_outcomeDist <- function(value, name){
+
+    if(length(value) != 2){
+        stop("Argument \'",name,"\' should have length 2. \n")
+    }
+    value[1] <- match.arg(value[1], choices = c("weibull", "uniform","piecewiseExp"))
+    value[2] <- match.arg(value[2], choices = c("weibull", "uniform","piecewiseExp"))
+
+    return(value)
+}
+check_outcomeCor <- function(value, name){
+    if(length(value) != 1){
+        stop("Argument \'",name,"\' should have length 1. \n")
+    }
+    if(abs(value) >= 1){
+        stop("Argument \'",name,"\' should correspond to a correlation: numeric, strictly between -1 and 1. \n")
+    }
+    return(value)
+}
+
+## ** check_censoring
+check_censoringScale <- function(value, name){
+    if(length(value) != 1){
+        stop("Argument \'",name,"\' should have length 1. \n")
+    }
+    return(value)
+}
+check_censoringShape <- function(value, name){
+    if(length(value) != 1){
+        stop("Argument \'",name,"\' should have length 1. \n")
+    }
+    return(value)
+}
+check_censoringDist <- function(value, name){
+
+    if(length(value) != 1){
+        stop("Argument \'",name,"\' should have length 1. \n")
+    }
+    value <- match.arg(value, choices = c("weibull", "uniform","piecewiseExp"))
+
+    return(value)
+}
+
+## ** rexppiecewise
+##' @examples
+##' ## EXAMPLE 1
+##' rate1 <- c(0.1,0.2)
+##' 
+##' set.seed(1) 
+##' res1 <- rexppiecewise(5, rate = rate1, breaks = 10)
+##' res1
+##'
+##' set.seed(1)
+##' E <- rexp(5)
+##' (E <= 10*rate1[1])*E/rate1[1] + (E > 10*rate1[1])*(E+10*rate1[1])/rate1[2]
+##'
+##' ## EXAMPLE 2 
+##' set.seed(2)
+##' res2 <- rexppiecewise(1e4, rate = c(1,0.01,0.5,2), breaks = 1:3, method = "single")
+##' library(survival)
+##' e.KM <- survfit(Surv(time,status)~1, data = data.frame(time=res2,status=1))
+##' df.KM <- data.frame(cumhaz = e.KM$cumhaz,
+##'                     time = e.KM$time,
+##'                     time0 = pmin(e.KM$time,1),
+##'                     time1 = pmin(pmax(e.KM$time-1,0),1),
+##'                     time2 = pmin(pmax(e.KM$time-2,0),1),
+##'                     time3 = pmax(e.KM$time-3,0)
+##' )
+##' plot(x = df.KM$time, y = df.KM$cumhaz, xlim = c(0,4))
+##' lm(cumhaz ~ 0 + time0 + time1 + time2 + time3, data = df.KM)
+##' 
+##' ## EXAMPLE 3
+##' rate3 <- c(0.1,0.1,0.1)
+##' 
+##' set.seed(3) 
+##' res3 <- rexppiecewise(5, rate = rate3, breaks = c(1,10))
+##' res3
+##'
+##' set.seed(3)
+##' E <- rexp(5, rate = unique(rate3))
+##' E
+rexppiecewise <- function(n, rate, breaks, method = "single"){
+
+    method <- match.arg(method, c("multiple","single"))
+    n.rate <- length(rate)
+    diff.breaks <- diff(c(0,breaks,Inf))
+        
+    if(method == "multiple"){
+        ## idea: simulate an exponential with each of the rate 
+        ##     : if the simulated value exceed the interval width move to the next time interval
+        ##     : stop at the first simulated value below the interval width and add the previous interval widths to get the output
+
+        M.simExp <- matrix(Inf, ncol = n.rate, nrow = n)
+        M.simExp[,rate>0] <- do.call(cbind,lapply(rate[rate>0], rexp, n = n))
+
+        ls.out <- apply(M.simExp, MARGIN = 1, FUN = function(iRow){ ## iRow <- M.simExp[3,]
+            iIndex <- which(iRow<diff.breaks)[1]
+            c(0,breaks)[iIndex] + iRow[iIndex]
+        }, simplify = FALSE)
+
+        out <- unlist(ls.out)
+    }else if(method == "single"){
+        ## idea: An exponential variable has survival function S(t)=P[E>t]=exp(-t)
+        ##     : so P[A^-1(E)>t] = P[E>A(t)] = exp(-A(t))
+        ##     : so applying the reciprocal of the cumulative hazard function to simulated exponential function
+        ##     : will lead to a random variable with the appropriate survival function
+        ## A(t) = \sum_{k, t_k < t} \alpha_k \Delta_k + \alpha_K (t-t_K)
+        ## therefore t = (A(t) - \sum_{k, t_k < t} \alpha_k \Delta_k) / alpha_K + t_K
+
+        E <- rexp(n)
+
+        A.min <- cumsum(c(0,rate*diff.breaks)[1:n.rate])
+        UA.min <- unique(A.min)
+        index.A <- cut(E, breaks = c(UA.min,Inf))
+
+        out <- (E - UA.min[as.numeric(index.A)])/rate[rate>0][index.A] + c(0,breaks)[rate>0][index.A]
+    }
+
+    return(out)
+}
+
+## ** pexppiecewise
+pexppiecewise <- function(q, rate, breaks, method = "single"){
+
+    browser()
+}
 ##----------------------------------------------------------------------
 ### simTrial.R ends here

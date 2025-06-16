@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (12:13) 
 ## Version: 
-## Last-Updated: jun 13 2025 (16:58) 
+## Last-Updated: jun 13 2025 (17:21) 
 ##           By: Brice Ozenne
-##     Update #: 10
+##     Update #: 12
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -21,7 +21,12 @@ library(pbapply)
 library(parallel)
 library(rpact)
 
-path <- "~/Github/GSD-GPC/R/"
+if(system("whoami",intern=TRUE)=="unicph\\hpl802"){  
+    path <- "~/Github/GSD-GPC/R/"
+}else if(system("whoami",intern=TRUE)=="hpl802"){  
+    path <- "./R"
+}
+
 sapply(list.files(path,full.names=TRUE), source)
 
 ## * planning
@@ -124,7 +129,7 @@ warper <- function(iSeed){ ## iSeed <- 1
 }
 
 ## * simulation study
-cl <- makeCluster(6)
+cl <- makeCluster(50)
 parallel::clusterExport(cl, varlist = c("path","n.E","n.C","Infoplan","critical.threshold"))
 xxx <- parallel::clusterCall(cl = cl, function(x){
     library(BuyseTest)

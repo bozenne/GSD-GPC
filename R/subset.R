@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:35) 
 ## Version: 
-## Last-Updated: jun 13 2025 (15:15) 
+## Last-Updated: jun 16 2025 (17:56) 
 ##           By: Brice Ozenne
-##     Update #: 25
+##     Update #: 28
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -47,7 +47,7 @@ subset.simTrial <- function(object, interim){
     out$pipeline <- ((out$timeInclusion + out$timeSurv) > interim)
     out$statusSurv <- out$statusSurv * ((out$timeInclusion + out$timeSurv) <= interim)
     out$timeSurv <- pmin(out$timeInclusion + out$timeSurv, interim) - out$timeInclusion
-    out$statusTox <- (out$statusTox==1) * ((out$timeInclusion + out$timeTox) <= interim)
+    out$statusTox <- out$statusTox * ((out$timeInclusion + out$timeTox) <= interim)
     out$timeTox <- pmin(out$timeInclusion + out$timeTox, interim) - out$timeInclusion
     attr(out,"interim") <- interim
 

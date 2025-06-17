@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun  3 2025 (09:38) 
 ## Version: 
-## Last-Updated: jun 13 2025 (17:12) 
+## Last-Updated: jun 16 2025 (17:59) 
 ##           By: Brice Ozenne
-##     Update #: 347
+##     Update #: 350
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -83,7 +83,7 @@ simTrial <- function(n.C, shape.recruitment.C = c(NA,NA),
                      scale.C = c(0.75,0.5), shape.C = c(3,0.75), dist.C = c("weibull", "weibull"), rho.C = 0,
                      scale.censoring.C = 1, shape.censoring.C = 1, dist.censoring.C = "weibull",
                      n.E = NULL, shape.recruitment.E = NULL,
-                     scale.E = NULL, shape.E = NULL, dist.E = NULL, rho.E = 0,
+                     scale.E = NULL, shape.E = NULL, dist.E = NULL, rho.E = NULL,
                      scale.censoring.E = NULL, shape.censoring.E = NULL, dist.censoring.E = NULL,
                      admin.censoring = 0.75, seed = NULL, latent = FALSE){
 

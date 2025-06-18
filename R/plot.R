@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:34) 
 ## Version: 
-## Last-Updated: jun 12 2025 (12:07) 
+## Last-Updated: jun 18 2025 (16:56) 
 ##           By: Brice Ozenne
-##     Update #: 51
+##     Update #: 54
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,6 +14,18 @@
 ##----------------------------------------------------------------------
 ## 
 ### Code:
+
+## * subset (documentation)
+##' @title Graphical Display of the GSD Data
+##' 
+##' @param object output of \code{simTrial}
+##' @param interim [numeric, >0, <1] timepoint up to which the data is restriected.
+##' @param id [interger, >0] subset of individuals to be displayed.
+##' @param type [character] should a lexis diagram be displayed (\code{"lexis"}),
+##' or the recruitement & number of pipeline patients over time (\code{"recruitment"}),
+##' or descriptive relative to each outcome  (\code{"survival"} or \code{"toxicity"}).
+##' @param size,linewidth,alpha,bin,facet_type,labeller cosmetic arguments for the display.
+##' @param facet [formula] variable(s) used to split the graphical display into panels. 
 
 ## * plot (code)
 plot.simTrial <- function(object, interim = NULL, id = NULL,

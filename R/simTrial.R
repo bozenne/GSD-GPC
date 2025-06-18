@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun  3 2025 (09:38) 
 ## Version: 
-## Last-Updated: jun 16 2025 (17:59) 
+## Last-Updated: jun 18 2025 (16:52) 
 ##           By: Brice Ozenne
-##     Update #: 350
+##     Update #: 352
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -16,6 +16,10 @@
 ### Code:
 
 ## * simTrial (documentation)
+##' @title Simulate Bivariate Time-to-event for 2-stage GSD
+##' @description Simulate data corresponding to a two-arm group sequential design with a single interim analysis and two time to event outcomes: one is survival and the other is toxicity.
+##' The time to event outcomes may be right-censored due to patient drop-out.
+##' 
 ##' @param n.E [integer] sample size in the experimental group
 ##' @param n.C [integer] sample size in the control group
 ##' @param shape.recruitment.C,shape.recruitment.E [numeric vector of length 2] shape of the distribution used to model the inclusion of the patients in the control/experimental group.

@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:34) 
 ## Version: 
-## Last-Updated: jun 13 2025 (15:15) 
+## Last-Updated: jun 18 2025 (16:53) 
 ##           By: Brice Ozenne
-##     Update #: 22
+##     Update #: 25
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,6 +14,13 @@
 ##----------------------------------------------------------------------
 ## 
 ### Code:
+
+## * subset (code)
+##' @title Key Features of the Simulated GSD Data
+##' @description Output key features of the simulated GSD data.
+##' 
+##' @param object output of \code{simTrial}
+##' @param interim [numeric, >0, <1] timepoint up to which the data is restriected.
 
 ## * summary (code)
 summary.simTrial <- function(object, interim = NULL){

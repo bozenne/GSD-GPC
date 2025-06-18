@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (10:35) 
 ## Version: 
-## Last-Updated: jun 16 2025 (17:56) 
+## Last-Updated: jun 18 2025 (16:52) 
 ##           By: Brice Ozenne
-##     Update #: 28
+##     Update #: 31
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -14,6 +14,13 @@
 ##----------------------------------------------------------------------
 ## 
 ### Code:
+
+## * subset (documentation)
+##' @title Interim Analysis Data
+##' @description Extract the data corresponding to an interim analysis.
+##' 
+##' @param object output of \code{simTrial}
+##' @param interim [numeric, >0, <1] timepoint up to which the data is restriected.
 
 ## * subset (code)
 subset.simTrial <- function(object, interim){

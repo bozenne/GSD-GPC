@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (12:13) 
 ## Version: 
-## Last-Updated: jun 18 2025 (17:04) 
+## Last-Updated: jun 18 2025 (17:21) 
 ##           By: Brice Ozenne
-##     Update #: 91
+##     Update #: 94
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -141,15 +141,16 @@ reshape(dtL.simH0.bound[,.(rho,.N,estimand,stage,design,bound2)], direction = "w
 ## 12:     0    36       HR    delayed 3.02 [2.78;3.31] 1.55 [1.45;1.64] 1.98 [1.97;1.99]
 
 ## *** Decision
-dt.simH0[rho==0,.(nSim = (.N/3),
-                  earlyStop = sum(decision %in% c("stop","infoMax"),na.rm=TRUE)/(.N/3),
-                  earlyH0 = sum(!is.na(decision) & decision == "futility" & stage == "decision", na.rm=TRUE)/(.N/3),
-                  earlyH1 = sum(!is.na(decision) & decision == "efficacy" & stage == "decision", na.rm=TRUE)/(.N/3),
-                  H0 = sum(decision == "futility",na.rm=TRUE)/(.N/3),
-                  H1 = sum(decision == "efficacy",na.rm=TRUE)/(.N/3),
-                  maxInfo = sum(decision == "infoMax",na.rm=TRUE)/(.N/3),
-                  reversal = sum(reversal, na.rm=TRUE)/(.N/3)),
-         by = c("estimand","design")]
+dt.simH0.decision <- dt.simH0[rho==0,.(nSim = (.N/3),
+                                       earlyStop = sum(decision %in% c("stop","infoMax"),na.rm=TRUE)/(.N/3),
+                                       earlyH0 = sum(!is.na(decision) & decision == "futility" & stage == "decision", na.rm=TRUE)/(.N/3),
+                                       earlyH1 = sum(!is.na(decision) & decision == "efficacy" & stage == "decision", na.rm=TRUE)/(.N/3),
+                                       H0 = sum(decision == "futility",na.rm=TRUE)/(.N/3),
+                                       H1 = sum(decision == "efficacy",na.rm=TRUE)/(.N/3),
+                                       maxInfo = sum(decision == "infoMax",na.rm=TRUE)/(.N/3),
+                                       reversal = sum(reversal, na.rm=TRUE)/(.N/3)),
+                              by = c("estimand","design")]
+dt.simH0.decision
 ##     estimand     design  nSim earlyStop earlyH0 earlyH1      H0      H1 maxInfo reversal
 ##       <char>     <char> <num>     <num>   <num>   <num>   <num>   <num>   <num>    <num>
 ##  1:      NTB      fixed 20000   1.00000 0.00000 0.00000 0.00000 0.00000       1  0.00000
@@ -220,6 +221,13 @@ warper(1, rho=0)
 ## confint(eBT.final)
 
 ## confint(BuyseTest(group ~ cont(timeSurv, threshold = 0.1) + bin(statusTox.bin, operator = "<0"), data = df.final, trace = FALSE))
+
+## ** export
+if(FALSE){
+    saveRDS(dtL.simH0.info, file = file.path("../inst/results","H0-info.rds"))
+    saveRDS(dtL.simH0.bound, file = file.path("../inst/results","H0-bound.rds"))
+    saveRDS(dt.simH0.decision, file = file.path("../inst/results","H0-decision.rds"))
+}
 
 ##----------------------------------------------------------------------
 ### test-GPC.R ends here

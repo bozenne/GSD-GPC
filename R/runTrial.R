@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 17 2025 (17:43) 
 ## Version: 
-## Last-Updated: jun 18 2025 (17:17) 
+## Last-Updated: jun 19 2025 (15:14) 
 ##           By: Brice Ozenne
-##     Update #: 117
+##     Update #: 141
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -81,7 +81,7 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
     }
 
     ## ** re-create data
-    data.interim <- subset(data, interim =  0.75)
+    data.interim <- subset(data, interim =  interim)
     data.decision <- data[data[[id.var]] %in% data.interim[[id.var]],]
     data.final <- data
     
@@ -92,19 +92,28 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
                          decision = do.call(BuyseTest, args = c(ls.args, list(data = data.decision))),
                          final = do.call(BuyseTest, args = c(ls.args, list(data = data.final))))
 
+        ## confint(ls.model[[1]]) ## 2*(1-pnorm(abs(atanh(-0.1479111)/(0.0649747/(1-(-0.1479111)^2)))))
+        ## confint(ls.model[[1]], transform = FALSE) ## 2*(1-pnorm(abs(-0.1479111/0.0649747)))
         GSD.confint <- do.call(rbind, lapply(ls.model, function(iO){
             iO.CI <- confint(iO)
+            ## add atanh transformation
+            iO.CI[,"se"] <- iO.CI[,"se"]/(1-iO.CI[,"estimate"]^2)
+            iO.CI[,"estimate"] <- atanh(iO.CI[,"estimate"])
+            ## export
             return(iO.CI[NROW(iO.CI),c("estimate","se","lower.ci","upper.ci","p.value"),drop=FALSE])
         }))
+        ## 2*(1-pnorm(abs(GSD.confint$estimate/GSD.confint$se)))
     }else{
         ls.model <- list(interim = update(object, data = data.interim),
                          decision = update(object, data = data.decision),
                          final = update(object, data = data.final))
 
+        ## take minus the coefficient so high values are good
         GSD.confint <- as.data.frame(do.call(rbind,lapply(ls.model, function(iM){ ## iM <- ls.model[[1]]
-            iOut <- c(coef(iM)[1], sqrt(vcov(iM)[1,1]))
+            iOut <- c(-coef(iM)[1], sqrt(vcov(iM)[1,1]))
             c(iOut, iOut[1] + qnorm(alpha) * iOut[2], iOut[1] + qnorm(1-alpha) * iOut[2], 2*(1-pnorm(abs(iOut[1]/iOut[2]))))            
         })))
+        
     }
     names(GSD.confint) <- c("estimate","se","lower","upper","p.value")
 
@@ -146,17 +155,48 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
         bound["decision"] <- qnorm(1-alpha)
         bound["final"] <- NA
     }else if(typeOfDesign == "delayed"){
-        gsd <- DelayedGSD::CalcBoundaries(kMax = 2,  
-                                          alpha = alpha, 
-                                          beta = 0.2,  
-                                          InfoR.i = object["interim","info.pc"],  
-                                          rho_alpha = 2,  
-                                          rho_beta = 2,  
-                                          method = 1, 
-                                          cNotBelowFixedc = FALSE, 
-                                          InfoR.d = c(object["decision","info.pc"],1),   
-                                          bindingFutility = FALSE,
-                                          alternative = "greater")
+
+        if(object["interim","info.pc"] < object["decision","info.pc"]){
+
+            ## spend all alpha at final (evaluated regardless to the information at final, to over or under-running)
+            gsd <- DelayedGSD::CalcBoundaries(kMax = 2,  
+                                              alpha = alpha, 
+                                              beta = 0.2,  
+                                              InfoR.i = object["interim","info.pc"],  
+                                              rho_alpha = 2,  
+                                              rho_beta = 2,  
+                                              method = 1, 
+                                              cNotBelowFixedc = FALSE, 
+                                              InfoR.d = c(object["decision","info.pc"],1),   
+                                              bindingFutility = FALSE,
+                                              alternative = "greater")        
+            
+        }else{ ## decreasing information between interim and decision
+
+            ## put decision after interim in term of information while keeping the information ratio between the two
+            ## should ensure balanced reversal probability
+            ## spend all alpha at final (evaluated regardless to the information at final, to over or under-running)
+            gsd <- DelayedGSD::CalcBoundaries(kMax = 2,  
+                                              alpha = alpha, 
+                                              beta = 0.2,  
+                                              InfoR.i = object["interim","info.pc"],  
+                                              rho_alpha = 2,  
+                                              rho_beta = 2,  
+                                              method = 1, 
+                                              cNotBelowFixedc = FALSE, 
+                                              InfoR.d = c(max(object["interim","info.pc"]*(object["interim","info.pc"]/object["decision","info.pc"]),1),1),   
+                                              bindingFutility = FALSE,
+                                              alternative = "greater")
+
+            ## Sigma <- diag(1, 3)
+            ## Sigma[1,2] <- Sigma[2,1] <- sqrt(object["decision","info.pc"]/object["interim","info.pc"])
+            ## Sigma[2,3] <- Sigma[3,2] <- sqrt(object["interim","info.pc"]/1)
+            ## Sigma[1,3] <- Sigma[3,1] <- sqrt(object["decision","info.pc"]/1)
+            ## reversal1 <- pmvnorm(lower = c(gsd$planned$uk, -Inf), upper = c(Inf, gsd$planned$ck[1]), mean = c(0,0), sigma = Sigma[1:2,1:2]) 
+            ## reversal2 <- pmvnorm(lower = c(-Inf, gsd$planned$ck[1]), upper = c(gsd$planned$lk, Inf), mean = c(0,0), sigma = Sigma[1:2,1:2])
+            ## reversal1 - reversal2
+        }
+
         bound["interim"] <- gsd$planned$uk
         bound[c("decision","final")] <- gsd$planned$ck
     
@@ -171,20 +211,13 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
         ##                             bindingFutility = FALSE)
     
     }else{
-        
-        if(object["interim","info.pc"]>object["final","info.pc"] || object["final","info.pc"] >= 1){
-            gsd <- getDesignGroupSequential(kMax = 2,
-                                            alpha = alpha,
-                                            sided = 1,
-                                            informationRates = c(object["interim","info.pc"],1),
-                                            typeOfDesign = typeOfDesign)
-        }else{
-            gsd <- getDesignGroupSequential(kMax = 2,
-                                            alpha = alpha,
-                                            sided = 1,
-                                            informationRates = object[c("interim","final"),"info.pc"],
-                                            typeOfDesign = typeOfDesign)
-        }
+
+        ## spend all alpha at final (evaluated regardless to the information at final, to over or under-running)
+        gsd <- getDesignGroupSequential(kMax = 2,
+                                        alpha = alpha,
+                                        sided = 1,
+                                        informationRates = c(object["interim","info.pc"],1),
+                                        typeOfDesign = typeOfDesign)
         bound[c("interim","final")] <- gsd$criticalValues
 
         if(is.infinite(bound["interim"]) && bound["interim"]>0){ ## information close to 0 at interim: continue at interim and no decision
@@ -200,7 +233,7 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
                                                               alpha = alpha,
                                                               sided = 1,
                                                               informationRates = c(object["decision","info.pc"],1),
-                                                              typeOfDesign = typeOfDesign)$criticalValues[2]
+                                                              typeOfDesign = typeOfDesign)$criticalValues[1]
             }
         }
     }

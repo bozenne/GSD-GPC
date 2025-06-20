@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 12 2025 (12:13) 
 ## Version: 
-## Last-Updated: jun 19 2025 (16:46) 
+## Last-Updated: jun 20 2025 (11:39) 
 ##           By: Brice Ozenne
-##     Update #: 190
+##     Update #: 210
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -40,7 +40,7 @@ sapply(list.files(path,full.names=TRUE,pattern="*.R"), source)
 ## * planning
 n.E <- 200
 n.C <- 200
-seqRho <- c(-0.5,0.25,0,0.25,0.5)
+seqRho <- c(-0.5,-0.25,0,0.25,0.5)
 n.sim <- 2e4
 n.cpus <- 100
 
@@ -194,7 +194,8 @@ gg.nodelayH0.type1error <- ggplot(dt.nodelayH0.decision, aes(x = rho, y = H1, gr
 gg.nodelayH0.type1error <- gg.nodelayH0.type1error + geom_point(size = 3) + geom_line(linewidth = 1)
 gg.nodelayH0.type1error <- gg.nodelayH0.type1error + facet_wrap(~estimand2)
 gg.nodelayH0.type1error <- gg.nodelayH0.type1error + geom_hline(yintercept = 0.025, color = "black", linetype = 2)
-gg.nodelayH0.type1error <- gg.nodelayH0.type1error + labs(y = "Type 1 error")
+gg.nodelayH0.type1error <- gg.nodelayH0.type1error + scale_y_continuous(labels = scales::percent)
+gg.nodelayH0.type1error <- gg.nodelayH0.type1error + labs(y = "Type 1 error", x = "Correlation between time to death and time to toxicity (\u03c1)", color = "Boundaries", shape = "Boundaries")
 gg.nodelayH0.type1error <- gg.nodelayH0.type1error + theme(text = element_text(size=15), 
                                                            axis.line = element_line(linewidth = 1.25),
                                                            axis.ticks = element_line(linewidth = 2),
@@ -305,10 +306,11 @@ dt.nodelayH1.decision[rho==0]
 dt.nodelayH1.decision$estimand2 <- sapply(dt.nodelayH1.decision$estimand, switch,
                                           "HR" = "Hazard Ratio (Cox)",
                                           "NTB" = "Net Treatment Benefit (GPC)")
-gg.nodelayH1.power <- ggplot(dt.nodelayH1.decision, aes(x = rho, y = H1, group = design, color = design))
-gg.nodelayH1.power <- gg.nodelayH1.power + geom_point(size = 2) + geom_line(linewidth = 1)
+gg.nodelayH1.power <- ggplot(dt.nodelayH1.decision, aes(x = rho, y = H1, group = design, color = design, shape = design))
+gg.nodelayH1.power <- gg.nodelayH1.power + geom_point(size = 3) + geom_line(linewidth = 1)
 gg.nodelayH1.power <- gg.nodelayH1.power + facet_wrap(~estimand2)
-gg.nodelayH1.power <- gg.nodelayH1.power + labs(y = "Power")
+gg.nodelayH1.power <- gg.nodelayH1.power + scale_y_continuous(labels = scales::percent)
+gg.nodelayH1.power <- gg.nodelayH1.power + labs(y = "Power", x = "Correlation between time to death and time to toxicity (\u03c1)", color = "Boundaries", shape = "Boundaries")
 gg.nodelayH1.power <- gg.nodelayH1.power + theme(text = element_text(size=15), 
                                                  axis.line = element_line(linewidth = 1.25),
                                                  axis.ticks = element_line(linewidth = 2),
@@ -427,7 +429,8 @@ gg.delayH0.type1error <- ggplot(dt.delayH0.decision, aes(x = rho, y = H1, group 
 gg.delayH0.type1error <- gg.delayH0.type1error + geom_point(size = 3) + geom_line(linewidth = 1)
 gg.delayH0.type1error <- gg.delayH0.type1error + facet_wrap(~estimand2)
 gg.delayH0.type1error <- gg.delayH0.type1error + geom_hline(yintercept = 0.025, color = "black", linetype = 2)
-gg.delayH0.type1error <- gg.delayH0.type1error + labs(y = "Type 1 error")
+gg.delayH0.type1error <- gg.delayH0.type1error + scale_y_continuous(labels = scales::percent)
+gg.delayH0.type1error <- gg.delayH0.type1error + labs(y = "Type 1 error", x = "Correlation between time to death and time to toxicity (\u03c1)", color = "Boundaries", shape = "Boundaries")
 gg.delayH0.type1error <- gg.delayH0.type1error + theme(text = element_text(size=15), 
                                                            axis.line = element_line(linewidth = 1.25),
                                                            axis.ticks = element_line(linewidth = 2),
@@ -537,10 +540,11 @@ dt.delayH1.decision[rho==0]
 dt.delayH1.decision$estimand2 <- sapply(dt.delayH1.decision$estimand, switch,
                                           "HR" = "Hazard Ratio (Cox)",
                                           "NTB" = "Net Treatment Benefit (GPC)")
-gg.delayH1.power <- ggplot(dt.delayH1.decision, aes(x = rho, y = H1, group = design, color = design))
-gg.delayH1.power <- gg.delayH1.power + geom_point(size = 2) + geom_line(linewidth = 1)
-gg.delayH1.power <- gg.delayH1.power + facet_wrap(~estimand)
-gg.delayH1.power <- gg.delayH1.power + labs(y = "Power")
+gg.delayH1.power <- ggplot(dt.delayH1.decision, aes(x = rho, y = H1, group = design, color = design, shape = design))
+gg.delayH1.power <- gg.delayH1.power + geom_point(size = 3) + geom_line(linewidth = 1)
+gg.delayH1.power <- gg.delayH1.power + facet_wrap(~estimand2)
+gg.delayH1.power <- gg.delayH1.power + scale_y_continuous(labels = scales::percent)
+gg.delayH1.power <- gg.delayH1.power + labs(y = "Power", x = "Correlation between time to death and time to toxicity (\u03c1)", color = "Boundaries", shape = "Boundaries")
 gg.delayH1.power <- gg.delayH1.power + theme(text = element_text(size=15), 
                                              axis.line = element_line(linewidth = 1.25),
                                              axis.ticks = element_line(linewidth = 2),
@@ -555,22 +559,22 @@ cat("Export \n")
 saveRDS(dtL.nodelayH0.info, file = file.path("../inst/results","nodelay-H0-info.rds")) ## dtL.nodelayH0.info <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H0-info.rds")
 saveRDS(dtL.nodelayH0.bound, file = file.path("../inst/results","nodelay-H0-bound.rds")) ## dtL.nodelayH0.bound <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H0-bound.rds")
 saveRDS(dt.nodelayH0.decision, file = file.path("../inst/results","nodelay-H0-decision.rds")) ## dt.nodelayH0.decision <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H0-decision.rds")
-ggsave(gg.nodelayH0.type1error, file = file.path("../inst/results","nodelay-H0-gg-type1error.pdf"), width = 12, height = 7)
+ggsave(gg.nodelayH0.type1error, file = file.path("../inst/results","nodelay-H0-gg-type1error.pdf"), width = 12, height = 7, device = cairo_pdf)
 
 saveRDS(dtL.nodelayH1.info, file = file.path("../inst/results","nodelay-H1-info.rds")) ## dtL.nodelayH1.info <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H1-info.rds")
 saveRDS(dtL.nodelayH1.bound, file = file.path("../inst/results","nodelay-H1-bound.rds"))  ## dtL.nodelayH1.bound <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H1-bound.rds")
 saveRDS(dt.nodelayH1.decision, file = file.path("../inst/results","nodelay-H1-decision.rds")) ## dt.nodelayH1.decision <- readRDS("~/Github/GSD-GPC/inst/results/nodelay-H1-decision.rds")
-ggsave(gg.nodelayH1.power, file = file.path("../inst/results","nodelay-H1-gg-power.pdf"), width = 12, height = 7)
+ggsave(gg.nodelayH1.power, file = file.path("../inst/results","nodelay-H1-gg-power.pdf"), width = 12, height = 7, device = cairo_pdf)
 
 saveRDS(dtL.delayH0.info, file = file.path("../inst/results","delay-H0-info.rds")) ## dtL.delayH0.info <- readRDS("~/Github/GSD-GPC/inst/results/delay-H0-info.rds")
 saveRDS(dtL.delayH0.bound, file = file.path("../inst/results","delay-H0-bound.rds")) ## dtL.delayH0.bound <- readRDS("~/Github/GSD-GPC/inst/results/delay-H0-bound.rds")
 saveRDS(dt.delayH0.decision, file = file.path("../inst/results","delay-H0-decision.rds"))  ## dt.delayH0.decision <- readRDS("~/Github/GSD-GPC/inst/results/delay-H0-decision.rds")
-ggsave(gg.delayH0.type1error, file = file.path("../inst/results","delay-H0-gg-type1error.pdf"), width = 12, height = 7)
+ggsave(gg.delayH0.type1error, file = file.path("../inst/results","delay-H0-gg-type1error.pdf"), width = 12, height = 7, device = cairo_pdf)
 
 saveRDS(dtL.delayH1.info, file = file.path("../inst/results","delay-H1-info.rds")) ## dtL.delayH1.info <- readRDS("~/Github/GSD-GPC/inst/results/delay-H1-info.rds")
 saveRDS(dtL.delayH1.bound, file = file.path("../inst/results","delay-H1-bound.rds"))  ## dtL.delayH1.bound <- readRDS("~/Github/GSD-GPC/inst/results/delay-H1-bound.rds")
 saveRDS(dt.delayH1.decision, file = file.path("../inst/results","delay-H1-decision.rds")) ## dt.delayH1.decision <- readRDS("~/Github/GSD-GPC/inst/results/delay-H1-decision.rds")
-ggsave(gg.delayH1.power, file = file.path("../inst/results","delay-H1-gg-power.pdf"), width = 12, height = 7)
+ggsave(gg.delayH1.power, file = file.path("../inst/results","delay-H1-gg-power.pdf"), width = 12, height = 7, device = cairo_pdf)
 cat("Done \n")
 
 ##----------------------------------------------------------------------

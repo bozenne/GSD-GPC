@@ -3,9 +3,9 @@
 ## Author: Brice Ozenne
 ## Created: jun 17 2025 (17:43) 
 ## Version: 
-## Last-Updated: jun 19 2025 (15:14) 
+## Last-Updated: jun 20 2025 (10:05) 
 ##           By: Brice Ozenne
-##     Update #: 141
+##     Update #: 150
 ##----------------------------------------------------------------------
 ## 
 ### Commentary: 
@@ -116,17 +116,21 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
         
     }
     names(GSD.confint) <- c("estimate","se","lower","upper","p.value")
-
+         
     GSD.confint <- cbind(stage = c("interim","decision","final"),
                          n.obs = c(NROW(data.interim),NROW(data.decision),NROW(data.final)),
+                         n.event = NA,
                          n.pipeline = c(sum(data.interim$pipeline),sum(data.decision$pipeline),sum(data.final$pipeline)),
                          info.pc = (1/GSD.confint$se^2)/maxInfo,
                          GSD.confint)
+    GSD.confint$n.event <- list(c(sum(data.interim$statusSurv), sum(data.interim$statusTox)),
+                                c(sum(data.decision$statusSurv), sum(data.decision$statusTox)),
+                                c(sum(data.final$statusSurv), sum(data.final$statusTox)))
 
     ## ** update boundaries and take decision
     out <- do.call(rbind,lapply(typeOfDesign, function(iType){ ## iType <- "none"
         iOut <- cbind(design = iType, GSD.confint, bound = .updateBound(GSD.confint, alpha = alpha, typeOfDesign = iType, maxInfo = maxInfo))
-        return(.updateDecision(iOut))
+        return(.updateDecision(iOut, typeOfDesign = iType))
     }))
 
     ## ** export
@@ -281,23 +285,32 @@ runTrial <- function(object, data, interim, typeOfDesign, maxInfo,
 }
 
 ## ** .updateDecision
-.updateDecision <- function(object){
+.updateDecision <- function(object, typeOfDesign){
 
     object$statistic <- object$estimate/object$se
     object$decision <- NA
     object$reversal <- NA
-    object["interim","decision"] <- ifelse(object["interim","info.pc"]>1,
-                                           "infoMax",
-                                           c("continue","stop")[1+(object["interim","statistic"] >= object["interim","bound"])])
-    object["decision","decision"] <- ifelse(object["interim","decision"] == "continue",
-                                            NA,
-                                            c("futility","efficacy")[1+(object["decision","statistic"] >= object["decision","bound"])])
-    object["final","decision"] <- ifelse(object["interim","decision"] == "continue",
-                                         c("futility","efficacy")[1+(object["final","statistic"] >= object["final","bound"])],
-                                         NA)
-    object["decision","reversal"] <- ifelse(object["interim","decision"] == "continue",
-                                            NA,
-                                            (object["interim","decision"]=="stop") & (object["decision","decision"]=="futility"))
+    if(typeOfDesign == "fixed"){
+        object["interim","decision"] <- "continue"
+        object["final","decision"] <- c("futility","efficacy")[1+(object["final","statistic"] >= object["final","bound"])]
+    }else{
+        if(typeOfDesign %in% c("none","bonferroni")){
+            object["interim","decision"] <- c("continue","stop")[1+(object["interim","statistic"] >= object["interim","bound"])]
+        }else{
+            object["interim","decision"] <- ifelse(object["interim","info.pc"]>1,
+                                                   "infoMax",
+                                                   c("continue","stop")[1+(object["interim","statistic"] >= object["interim","bound"])])
+        }
+        object["decision","decision"] <- ifelse(object["interim","decision"] == "continue",
+                                                NA,
+                                                c("futility","efficacy")[1+(object["decision","statistic"] >= object["decision","bound"])])
+        object["final","decision"] <- ifelse(object["interim","decision"] == "continue",
+                                             c("futility","efficacy")[1+(object["final","statistic"] >= object["final","bound"])],
+                                             NA)
+        object["decision","reversal"] <- ifelse(object["interim","decision"] == "continue",
+                                                NA,
+                                                (object["interim","decision"]=="stop") & (object["decision","decision"]=="futility"))
+    }
 
     return(object)
 
